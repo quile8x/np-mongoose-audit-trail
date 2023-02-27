@@ -1,14 +1,14 @@
 {
-  "_from": "mongoose-audit-trail",
-  "_id": "mongoose-audit-trail",
+  "_from": "np-mongoose-audit-trail",
+  "_id": "np-mongoose-audit-trail",
   "_inBundle": false,
   "_phantomChildren": {},
   "_requested": {
     "type": "tag",
     "registry": true,
-    "raw": "mongoose-audit-trail",
-    "name": "mongoose-audit-trail",
-    "escapedName": "mongoose-audit-trail",
+    "raw": "np-mongoose-audit-trail",
+    "name": "np-mongoose-audit-trail",
+    "escapedName": "np-mongoose-audit-trail",
     "rawSpec": "",
     "saveSpec": null,
     "fetchSpec": "latest"
@@ -17,15 +17,15 @@
     "#USER",
     "/"
   ],
-  "_spec": "mongoose-audit-trail",
+  "_spec": "np-mongoose-audit-trail",
   "bugs": {
-    "url": "https://github.com/MAkhamis/mongoose-audit-trail"
+    "url": "https://github.com/quile8x/np-mongoose-audit-trail"
   },
   "bundleDependencies": [],
   "contributors": [
     {
-      "name": "Mohammad Khamis",
-      "email": "m@khamis.info"
+      "name": "Qui Le",
+      "email": "quile8x@gmail.com"
     }
   ],
   "dependencies": {
@@ -50,7 +50,7 @@
   "engines": {
     "node": "*"
   },
-  "homepage": "https://github.com/MAkhamis/mongoose-audit-trail#readme",
+  "homepage": "https://github.com/quile8x/np-mongoose-audit-trail#readme",
   "keywords": [
     "mongoose",
     "audit",
@@ -61,13 +61,13 @@
   ],
   "license": "GPL-2.0",
   "main": "index.js",
-  "name": "mongoose-audit-trail",
+  "name": "np-mongoose-audit-trail",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MAkhamis/mongoose-audit-trail.git"
+    "url": "git+https://github.com/quile8x/np-mongoose-audit-trail.git"
   },
   "scripts": {
     "test": "istanbul cover --report lcov  _mocha tests --recursive"
   },
-  "version": "2.0.7"
+  "version": "1.0.0"
 }

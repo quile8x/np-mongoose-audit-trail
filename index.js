@@ -14,6 +14,8 @@ const isValidCb = cb => {
   return cb && typeof cb === "function";
 };
 
+let isNew = false;
+
 //https://eslint.org/docs/rules/complexity#when-not-to-use-it
 /* eslint-disable complexity */
 function checkRequired(opts, queryObject, updatedObject) {
@@ -31,6 +33,118 @@ function checkRequired(opts, queryObject, updatedObject) {
   }
 }
 
+function saveDiffObjectPost(
+  currentObject,
+  original,
+  updated,
+  opts,
+  queryObject,
+  method
+) {
+  const { __user: user, __reason: reason, __session: session } =
+    (queryObject && queryObject.options) || currentObject;
+
+  let diff = diffPatcher.diff(
+    JSON.parse(JSON.stringify(original)),
+    JSON.parse(JSON.stringify(updated))
+  );
+
+  if (opts.omit) {
+    omit(diff, opts.omit, { cleanEmpty: true });
+  }
+
+  if (opts.pick) {
+    diff = pick(diff, opts.pick);
+  }
+
+
+  if (!currentObject) {
+    const collectionId = mongoose.Types.ObjectId();
+    const collectionName = queryObject.model.modelName || "";
+    const history = new History({
+      collectionId,
+      collectionName,
+      method: "insert",
+      diff,
+      user,
+      reason,
+      version: 0
+    });
+    if (session) {
+      return history.save({ session });
+    }
+    return history.save();
+  }
+
+  const collectionId = currentObject._id;
+  const collectionName =
+    currentObject.constructor.modelName || queryObject.model.modelName;
+   History.findOne({ collectionId, collectionName })
+    .sort("-version")
+    .then(lastHistory => {
+      const history = new History({
+        collectionId,
+        collectionName,
+        method: "insert",
+        updated,
+        user,
+        reason,
+        version: lastHistory ? lastHistory.version + 1 : 0
+      });
+      if (session) {
+        return history.save({ session });
+      }
+      return history.save();
+    });
+}
+/* eslint-disable complexity */
+
+const saveDiffHistoryPost = (queryObject, currentObject, opts, method) => {
+  const update = JSON.parse(JSON.stringify(queryObject._update));
+  /* eslint-disable security/detect-object-injection */
+  const updateParams = Object.assign(
+    ...Object.keys(update).map(function (key) {
+      if (typeof update[key] === "object") {
+        return update[key];
+      }
+      return update;
+    })
+  );
+  /* eslint-enable security/detect-object-injection */
+  delete queryObject._update["$setOnInsert"];
+  var set = queryObject._update["$set"];
+  queryObject._update = { ...queryObject._update, ...set };
+  delete queryObject._update["$set"];
+  const dbObject = pick(currentObject, Object.keys(updateParams));
+  return saveDiffObjectPost(
+    currentObject,
+    dbObject,
+    assign(dbObject, queryObject._update),
+    opts,
+    queryObject,
+    method
+  );
+};
+
+const saveDiffsPost = (queryObject, opts, method) => {
+ 
+  queryObject
+    .find(queryObject._conditions)
+    .lean(false)
+    .cursor()
+    .map(function (docs) {
+      return docs
+    })
+    .next(function (error, docs) {
+      if (!docs) {
+        saveDiffHistoryPost(queryObject, null, opts, method);
+      } else {
+        saveDiffHistoryPost(queryObject, docs, opts, method)
+      }
+    });
+  return Promise.resolve();
+}
+//....
 function saveDiffObject(
   currentObject,
   original,
@@ -57,6 +171,24 @@ function saveDiffObject(
 
   if (!diff || !Object.keys(diff).length || empty.all(diff)) {
     return;
+  }
+
+  if (!currentObject) {
+    const collectionId = mongoose.Types.ObjectId();
+    const collectionName = queryObject.model.modelName || "";
+    const history = new History({
+      collectionId,
+      collectionName,
+      method: "insert",
+      diff,
+      user,
+      reason,
+      version: 0
+    });
+    if (session) {
+      return history.save({ session });
+    }
+    return history.save();
   }
 
   const collectionId = currentObject._id;
@@ -87,7 +219,7 @@ const saveDiffHistory = (queryObject, currentObject, opts, method) => {
   const update = JSON.parse(JSON.stringify(queryObject._update));
   /* eslint-disable security/detect-object-injection */
   const updateParams = Object.assign(
-    ...Object.keys(update).map(function(key) {
+    ...Object.keys(update).map(function (key) {
       if (typeof update[key] === "object") {
         return update[key];
       }
@@ -110,12 +242,27 @@ const saveDiffHistory = (queryObject, currentObject, opts, method) => {
   );
 };
 
-const saveDiffs = (queryObject, opts, method) =>
+const saveDiffs = (queryObject, opts, method) => {
   queryObject
     .find(queryObject._conditions)
     .lean(false)
     .cursor()
-    .eachAsync(result => saveDiffHistory(queryObject, result, opts, method));
+    .map(function (docs) {
+      return docs
+    })
+    .next(function (error, docs) {
+      if (!docs) {
+        isNew = true;
+        //saveDiffHistory(queryObject, null, opts, method);
+      } else {
+        isNew = false;
+        saveDiffHistory(queryObject, docs, opts, method);
+        
+      }
+    });
+  return Promise.resolve();
+}
+
 
 const getVersion = (model, id, version, queryOpts, cb) => {
   if (typeof queryOpts === "function") {
@@ -249,7 +396,7 @@ const plugin = function lastModifiedPlugin(schema, opts = {}) {
     }
   }
 
-  schema.pre("save", function(next) {
+  schema.pre("save", function (next) {
     var method;
     this.isNew ? (method = "create") : (method = "update");
     this.constructor
@@ -271,7 +418,7 @@ const plugin = function lastModifiedPlugin(schema, opts = {}) {
       .catch(next);
   });
 
-  schema.pre("findOneAndUpdate", function(next) {
+  schema.pre("findOneAndUpdate", function (next) {
     if (checkRequired(opts, this)) {
       return next();
     }
@@ -280,7 +427,21 @@ const plugin = function lastModifiedPlugin(schema, opts = {}) {
       .catch(next);
   });
 
-  schema.pre("update", function(next) {
+  schema.post("findOneAndUpdate", function (next) {
+    if (isNew == false) {
+      return;
+    } 
+    if (checkRequired(opts, this)) {
+      return next();
+    }
+    saveDiffsPost(this, opts, "update")
+      .then()
+      .catch(err => {
+      });
+    isNew = false;
+  });
+
+  schema.pre("update", function (next) {
     if (checkRequired(opts, this)) {
       return next();
     }
@@ -289,7 +450,7 @@ const plugin = function lastModifiedPlugin(schema, opts = {}) {
       .catch(next);
   });
 
-  schema.pre("updateOne", function(next) {
+  schema.pre("updateOne", function (next) {
     if (checkRequired(opts, this)) {
       return next();
     }
@@ -298,7 +459,7 @@ const plugin = function lastModifiedPlugin(schema, opts = {}) {
       .catch(next);
   });
 
-  schema.pre("remove", function(next) {
+  schema.pre("remove", function (next) {
     if (checkRequired(opts, this)) {
       return next();
     }

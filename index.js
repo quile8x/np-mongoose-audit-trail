@@ -41,7 +41,7 @@ function saveDiffObjectPost(
   queryObject,
   method
 ) {
-  const { __user: user, __reason: reason, __session: session } =
+  let { __user: user, __reason: reason, __session: session } =
     (queryObject && queryObject.options) || currentObject;
 
   let diff = diffPatcher.diff(
@@ -57,6 +57,17 @@ function saveDiffObjectPost(
     diff = pick(diff, opts.pick);
   }
 
+  if(!user) {
+    if(updated?.createdBy) {
+      user = updated?.createdBy;
+    }
+    if(updated?.updatedBy) {
+      user = updated?.updatedBy;
+    }
+    if(updated?.lastUpdatedBy) {
+      user = updated?.lastUpdatedBy;
+    }
+  }
 
   if (!currentObject) {
     const collectionId = mongoose.Types.ObjectId();
@@ -64,7 +75,7 @@ function saveDiffObjectPost(
     const history = new History({
       collectionId,
       collectionName,
-      method: "insert",
+      method: "create",
       diff,
       user,
       reason,
@@ -85,7 +96,7 @@ function saveDiffObjectPost(
       const history = new History({
         collectionId,
         collectionName,
-        method: "insert",
+        method: "create",
         updated,
         user,
         reason,
@@ -153,7 +164,7 @@ function saveDiffObject(
   queryObject,
   method
 ) {
-  const { __user: user, __reason: reason, __session: session } =
+  let { __user: user, __reason: reason, __session: session } =
     (queryObject && queryObject.options) || currentObject;
 
   let diff = diffPatcher.diff(
@@ -169,6 +180,18 @@ function saveDiffObject(
     diff = pick(diff, opts.pick);
   }
 
+  if(!user) {
+    if(updated?.createdBy) {
+      user = updated?.createdBy;
+    }
+    if(updated?.updatedBy) {
+      user = updated?.updatedBy;
+    }
+    if(updated?.lastUpdatedBy) {
+      user = updated?.lastUpdatedBy;
+    }
+  }
+
   if (!diff || !Object.keys(diff).length || empty.all(diff)) {
     return;
   }
@@ -179,7 +202,7 @@ function saveDiffObject(
     const history = new History({
       collectionId,
       collectionName,
-      method: "insert",
+      method: "create",
       diff,
       user,
       reason,
